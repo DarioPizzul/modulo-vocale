@@ -2,143 +2,121 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <title>Invia messaggio vocale</title>
+  <title>Registrazione Vocale</title>
   <style>
     body {
       font-family: sans-serif;
-      background-color: #f8f8f8;
+      background-color: #f4f4f4;
       padding: 2rem;
       max-width: 600px;
       margin: auto;
-      border-radius: 12px;
-      box-shadow: 0 0 12px rgba(0,0,0,0.1);
     }
-
-    h2 {
-      text-align: center;
-      color: #333;
-    }
-
-    label {
-      display: block;
-      margin: 1rem 0 0.3rem;
-    }
-
-    input {
-      padding: 8px;
-      width: 100%;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-
+    h2 { text-align: center; }
+    label { margin-top: 1rem; display: block; }
+    input { padding: 8px; width: 100%; margin-bottom: 1rem; }
     button {
-      padding: 12px 18px;
-      margin: 10px 5px;
+      padding: 10px 16px;
       font-size: 16px;
+      margin: 5px;
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
       cursor: pointer;
     }
-
-    #start {
-      background-color: #28a745;
-      color: white;
-    }
-
-    #stop {
-      background-color: #dc3545;
-      color: white;
-    }
-
-    #send {
-      background-color: #007bff;
-      color: white;
-    }
-
-    audio {
-      width: 100%;
-      margin-top: 1rem;
-    }
-
-    p {
-      font-size: 16px;
-    }
+    #start { background-color: #28a745; color: white; }
+    #stop { background-color: #dc3545; color: white; }
+    #send { background-color: #007bff; color: white; }
+    audio { width: 100%; margin: 1rem 0; }
+    #status { font-weight: bold; margin-top: 1rem; }
   </style>
 </head>
 <body>
-  <h2>🎤 Invia il tuo messaggio vocale</h2>
+  <h2>🎙️ Lascia il tuo messaggio vocale</h2>
 
   <label for="anno">Anno di nascita</label>
-  <input type="text" id="anno" placeholder="Es: 2007">
+  <input type="text" id="anno" placeholder="Es: 2007" required>
 
   <label for="citta">Città di residenza</label>
-  <input type="text" id="citta" placeholder="Es: Bologna">
+  <input type="text" id="citta" placeholder="Es: Milano" required>
 
-  <br><br>
-  <button id="start">🎙️ Inizia registrazione</button>
-  <button id="stop" disabled>⏹️ Ferma registrazione</button>
-  
+  <button id="start">▶️ Inizia registrazione</button>
+  <button id="stop" disabled>⏹️ Ferma</button>
   <audio id="player" controls></audio>
-  <br><br>
   <button id="send" disabled>📤 Invia</button>
+
   <p id="status"></p>
 
   <script>
-    let mediaRecorder;
-    let audioChunks = [];
-    let audioBlob;
+    let recorder, audioChunks = [], audioBlob;
 
-    const startBtn = document.getElementById("start");
-    const stopBtn = document.getElementById("stop");
-    const sendBtn = document.getElementById("send");
-    const status = document.getElementById("status");
+    const start = document.getElementById("start");
+    const stop = document.getElementById("stop");
+    const send = document.getElementById("send");
     const player = document.getElementById("player");
-
+    const status = document.getElementById("status");
     const anno = document.getElementById("anno");
     const citta = document.getElementById("citta");
 
-    startBtn.onclick = async () => {
+    start.onclick = async () => {
       if (!anno.value || !citta.value) {
-        alert("Per favore inserisci anno di nascita e città.");
+        alert("Inserisci anno di nascita e città.");
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream);
-      audioChunks = [];
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = e => audioChunks.push(e.data);
 
-      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        recorder.onstop = () => {
+          audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          player.src = URL.createObjectURL(audioBlob);
+          send.disabled = false;
+          send.disabled = false;
+          status.textContent = "✅ Registrazione pronta per l'invio.";
+        };
 
-      mediaRecorder.onstop = () => {
-        audioBlob = new Blob(audioChunks, { type: "audio/wav" });
-        player.src = URL.createObjectURL(audioBlob);
-        sendBtn.disabled = false;
-        status.textContent = "✅ Registrazione pronta per l'invio";
-      };
-
-      mediaRecorder.start();
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-      status.textContent = "🎙️ Registrazione in corso...";
+        audioChunks = [];
+        recorder.start();
+        start.disabled = true;
+        stop.disabled = false;
+        status.textContent = "🎙️ Registrazione in corso...";
+      } catch (err) {
+        alert("Errore nell'accesso al microfono: " + err.message);
+      }
     };
 
-    stopBtn.onclick = () => {
-      mediaRecorder.stop();
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
+    stop.onclick = () => {
+      recorder.stop();
+      start.disabled = false;
+      stop.disabled = true;
     };
 
-    sendBtn.onclick = () => {
-      status.textContent = "⏳ Invio in corso...";
-      sendBtn.disabled = true;
+    send.onclick = async () => {
+      status.textContent = "📤 Invio in corso...";
+      send.disabled = true;
 
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64Audio = reader.result.split(',')[1];
+        const base64 = reader.result.split(',')[1];
         const formData = new FormData();
-        formData.append("audio", base64Audio);
+        formData.append("audio", base64);
         formData.append("anno", anno.value.trim());
         formData.append("citta", citta.value.trim());
 
         try {
+          const res = await fetch("https://script.google.com/macros/s/AKfycbydapt-ybv9cvDRZp_RJESOdYJPORtlC5ziYM48xKUATVD1gLhY9UDn1-nZd3ZYVZj1/exec", {
+            method: "POST",
+            body: formData
+          });
+          const text = await res.text();
+          status.textContent = "✅ Inviato! Grazie per il tuo contributo.";
+        } catch (err) {
+          status.textContent = "❌ Errore durante l'invio: " + err.message;
+        }
+      };
+
+      reader.readAsDataURL(audioBlob);
+    };
+  </script>
+</body>
+</html>
